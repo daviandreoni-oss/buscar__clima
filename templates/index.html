@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkyPulse | Clima Premium</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* ── Tabela de Histórico ── */
+        .historico-section {
+            margin-top: 2.5rem;
+        }
+        .historico-section h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            opacity: .85;
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+        }
+        .historico-wrapper {
+            overflow-x: auto;
+            border-radius: 16px;
+        }
+        .historico-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .88rem;
+            background: rgba(255,255,255,.08);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        .historico-table thead tr {
+            background: rgba(255,255,255,.15);
+        }
+        .historico-table th {
+            padding: .75rem 1rem;
+            text-align: left;
+            font-weight: 600;
+            white-space: nowrap;
+            opacity: .9;
+        }
+        .historico-table td {
+            padding: .65rem 1rem;
+            border-top: 1px solid rgba(255,255,255,.08);
+            white-space: nowrap;
+        }
+        .historico-table tbody tr:hover {
+            background: rgba(255,255,255,.07);
+        }
+        .historico-vazio {
+            text-align: center;
+            padding: 1.5rem;
+            opacity: .6;
+            font-size: .9rem;
+        }
+    </style>
+</head>
+
+{# Determina a classe de tema baseado no ícone do clima #}
+{% set icon = weather.icon if weather else '' %}
+{% if 'rain' in icon or 'storm' in icon %}
+    {% set theme = 'rainy' %}
+{% elif 'cloud' in icon %}
+    {% set theme = 'cloudy' %}
+{% elif 'night' in icon %}
+    {% set theme = 'clear-night' %}
+{% elif weather %}
+    {% set theme = 'sunny' %}
+{% else %}
+    {% set theme = '' %}
+{% endif %}
+
+<body class="{{ theme }}">
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="loading-icon"><i data-lucide="cloud"></i></div>
+            <div class="loading-spinner"></div>
+            <p>Consultando dados atmosféricos...</p>
+        </div>
+    </div>
+
+    <div class="bg-circles">
+        <div class="circle" style="width: 400px; height: 400px; top: -100px; right: -100px;"></div>
+        <div class="circle" style="width: 300px; height: 300px; bottom: -50px; left: -50px; animation-delay: -5s;"></div>
+    </div>
+
+    <main class="container">
+        <!-- Formulário de Busca -->
+        <header class="search-container">
+            <form action="/" method="GET" class="search-form" id="searchForm">
+                <input type="text" name="cidade" id="cityInput"
+                       value="{{ cidade }}"
+                       placeholder="Digite o nome da cidade (ex: São Paulo)..." autofocus>
+                <button type="submit">
+                    <i data-lucide="search"></i>
+                    Buscar
+                </button>
+            </form>
+        </header>
+
+        {# Mensagem de Erro #}
+        {% if error %}
+        <div class="error-msg" style="display: block;">{{ error }}</div>
+        {% endif %}
+
+        {# Conteúdo do Clima #}
+        {% if weather %}
+        <div id="weatherContent">
+            <section class="main-weather">
+                <div class="city-info">
+                    <h1>{{ weather.cidade }}</h1>
+                    <p>{{ weather.data }}</p>
+                    {% if weather.hora %}
+                    <p class="hora">Atualizado às {{ weather.hora }}</p>
+                    {% endif %}
+                </div>
+                <div class="temp-container">
+                    <div class="temp-main">{{ weather.temperatura | default(0) | round | int }}°</div>
+                    <div class="weather-desc">{{ weather.icon | replace('-', ' ') }}</div>
+                </div>
+            </section>
+
+            <section class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon"><i data-lucide="droplets"></i></div>
+                    <div class="stat-info">
+                        <span>Umidade</span>
+                        <b>{{ weather.umidade | default(0) | round | int }}%</b>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i data-lucide="wind"></i></div>
+                    <div class="stat-info">
+                        <span>Ventos</span>
+                        <b>{{ weather.vento | default(0) | round | int }} km/h</b>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i data-lucide="cloud-rain"></i></div>
+                    <div class="stat-info">
+                        <span>Precipitação</span>
+                        <b>{{ weather.precipitacao | default(0) }} mm</b>
+                    </div>
+                </div>
+            </section>
+
+            <section class="forecast-section">
+                <h3 class="forecast-title">Próximos {{ weather.previsao | length }} Dias</h3>
+                <div class="forecast-scroll">
+                    {% for dia in weather.previsao %}
+                    {% set icon_map = {
+                        'clear-day': 'sun',
+                        'clear-night': 'moon',
+                        'rain': 'cloud-rain',
+                        'snow': 'snowflake',
+                        'sleet': 'cloud-hail',
+                        'wind': 'wind',
+                        'fog': 'cloud-fog',
+                        'cloudy': 'cloud',
+                        'partly-cloudy-day': 'cloud-sun',
+                        'partly-cloudy-night': 'cloud-moon'
+                    } %}
+                    {% set lucide_icon = icon_map.get(dia.icon, 'cloud') %}
+                    <div class="forecast-card">
+                        <div class="day">
+                            {% if loop.first %}Hoje{% else %}{{ dia.data }}{% endif %}
+                        </div>
+                        <div class="icon"><i data-lucide="{{ lucide_icon }}"></i></div>
+                        <div class="temps">
+                            <span>{{ dia.temperatura_max | default(0) | round | int }}°</span>
+                            <span class="min">{{ dia.temperatura_min | default(0) | round | int }}°</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+        </div>
+
+        {% elif not error %}
+        <div class="empty-state">
+            <div class="empty-icon"><i data-lucide="cloud-sun"></i></div>
+            <h2>Bem-vindo ao SkyPulse</h2>
+            <p>Digite o nome de uma cidade acima para consultar o clima em tempo real.</p>
+        </div>
+        {% endif %}
+
+        {# ── Histórico de Consultas ── #}
+        <section class="historico-section">
+            <h3><i data-lucide="history"></i> Histórico de Consultas</h3>
+            <div class="historico-wrapper">
+                {% if historico %}
+                <table class="historico-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Cidade</th>
+                            <th>Data</th>
+                            <th>Umidade (%)</th>
+                            <th>Vento (km/h)</th>
+                            <th>Precipitação (mm)</th>
+                            <th>Mín (°C)</th>
+                            <th>Máx (°C)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for reg in historico %}
+                        <tr>
+                            <td>{{ reg.id }}</td>
+                            <td>{{ reg.cidade | title }}</td>
+                            <td>{{ reg.data }}</td>
+                            <td>{{ reg.umidade | default('-') }}</td>
+                            <td>{{ reg.vento | default('-') }}</td>
+                            <td>{{ reg.precipitacao | default('-') }}</td>
+                            <td>{{ reg.temp_min | default('-') }}</td>
+                            <td>{{ reg.temp_max | default('-') }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="historico-vazio">Nenhuma consulta registrada ainda.</p>
+                {% endif %}
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        lucide.createIcons();
+        document.getElementById('searchForm').addEventListener('submit', function(e) {
+            var city = document.getElementById('cityInput').value.trim();
+            if (city.length < 2) return;
+            document.getElementById('loadingOverlay').classList.add('active');
+        });
+    </script>
+</body>
+</html>
